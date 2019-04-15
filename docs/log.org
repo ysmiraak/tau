@@ -1,74 +1,84 @@
 * idea
 
-- 5 germanic languages : en nl de da sv
-- parallel corpora between en and the other 4
+- 4 indo-european languages : en sv it el
+- 1 non-indo-european language: fi
 
 training
 
-- model 0: between nl da
-- model 1: between en de sv
-- model 2: between nl da, from model 1
-- model 3: between nl da, from model 1, train embedding only
-- model 4: like model 3, but with only 2^17 instances
-- model 5: like model 0, but with only 2^17 instances
-
-evaluation
-
-- bleu scores between nl da          ; for model 0
-- bleu scores between en de sv       ; for model 1
-- bleu scores between en nl de da sv ; for model 2 3
+| trial | l0 | l1       | from | purpose                                                       |
+|-------+----+----------+------+---------------------------------------------------------------|
+| t0    | en | fi       |      | baseline                                                      |
+| t1    | en | sv it el |      | functor Lex -> Lang                                           |
+| t2    | en | fi       | t1   | to see how well t1 accomodates an alien language              |
+| t3    | fi | fi       | t1   | to see if zero-shot translation works with monolingual corpus |
+| t4    | nl | da       | t1   | to see if t1 is better (more functorial) than m1, cf. m3      |
+| t5    | fi | fi       | t1   | like t3 but with sampled pieces                               |
 
 * data
 
-number of non-empty instances in each corpus
+number of non-empty (chars >= 3) instances in each corpus
 
-| nl | 1978745 |
-| de | 1908920 |
-| da | 1949685 |
-| sv | 1848423 |
+| el | 1224964 |
+| it | 1897769 |
+| sv | 1840952 |
+| fi | 1909081 |
 
 - partition all sentences in 5 corpora into equivalence classes
-- take the classes which cover all languages (1390396) uniquely (1381977)
+- take the classes which cover all languages uniquely (848290)
 
 - sentencepiece unigram vocabulary model, one for each language
-- take instances with all sentences within 64 pieces (1259953)
+- take instances with all sentences within 64 pieces (751225)
 - randomly split 4096 instances for evaluation and 1024 for validation
-- 1254833 training instances
+- removes evaluation and validation instances from training data
+- removes instances longer than 64 pieces
+
+number of training instances
+
+| el | 1078552 |
+| it | 1743170 |
+| sv | 1732776 |
+| fi | 1794165 |
 
 * bleu
 
 evaluated with =sacrebleu -tok intl=
 
-after training each model for ~36 epochs, with batch size 300
-  - 300k steps for m0 m2 m3
-  - 900k steps for m1
+after training each model for ~50 epochs, with batch size 300
 
-| tgt | src |   m0 |   m1 |   m2 |   m3 |
-|-----+-----+------+------+------+------|
-| nl  | en  |  0.0 |  0.0 |  0.2 | 23.3 |
-| en  | nl  |  0.0 |  0.0 |  0.0 | 30.7 |
-| de  | en  |  0.0 | 29.0 |  0.0 | 29.0 |
-| en  | de  |  0.0 | 35.9 |  0.0 | 35.9 |
-| da  | en  |  0.1 |  0.0 |  0.0 | 31.5 |
-| en  | da  |  0.0 |  0.0 |  0.0 | 35.4 |
-| sv  | en  |  0.0 | 36.3 |  0.0 | 36.3 |
-| en  | sv  |  0.0 | 40.1 |  0.0 | 40.1 |
-| de  | nl  |  0.0 |  0.0 |  0.0 | 22.0 |
-| nl  | de  |  0.0 |  0.0 |  0.0 | 22.1 |
-| da  | nl  | 29.8 |  0.0 | 29.4 | 26.3 |
-| nl  | da  | 28.1 |  0.0 | 27.7 | 23.5 |
-| sv  | nl  |  0.0 |  0.0 |  0.0 | 23.7 |
-| nl  | sv  |  0.0 |  0.0 |  0.0 | 21.5 |
-| da  | de  |  0.0 |  0.0 |  0.2 | 26.9 |
-| de  | da  |  0.0 |  0.0 |  0.0 | 23.6 |
-| sv  | de  |  0.0 | 27.9 |  0.0 | 27.9 |
-| de  | sv  |  0.0 | 25.9 |  0.0 | 25.9 |
-| sv  | da  |  0.0 |  0.0 |  0.0 | 29.0 |
-| da  | sv  |  0.1 |  0.0 |  0.1 | 29.8 |
+| trial | steps | epochs |
+|-------+-------+--------|
+| t1    |  16e5 |  52.70 |
+| t0 t2 |   6e5 |  50.16 |
+| t3    |   3e5 |  50.16 |
+| t4    |   3e5 |  35.86 |
+| t5    |   3e5 |  21.40 |
 
-with 2^17 instances
+=t5= doubled cap to 128 (due to sampling), with batch size 128.
 
-|    | da <- nl | nl <- da | k-steps | epochs |
-|----+----------+----------+---------+--------|
-| m4 |     26.1 |     23.5 |     360 | 205.99 |
-| m5 |     24.7 |     23.2 |      40 | 22.888 |
+| tgt | src |   t0 |   t1 |   t2 |   t3 |   t5 |
+|-----+-----+------+------+------+------+------|
+| el  | en  |  0.0 | 37.4 | 37.4 | 37.4 | 37.4 |
+| el  | fi  |  0.0 |  0.0 | 11.5 |  0.1 |  0.1 |
+| el  | it  |  0.0 | 14.6 | 14.6 | 14.6 | 14.6 |
+| el  | sv  |  0.0 | 15.1 | 15.1 | 15.1 | 15.1 |
+| en  | el  |  0.0 | 43.1 | 43.1 | 43.1 | 43.1 |
+| en  | fi  | 35.2 |  0.0 | 28.1 |  0.6 |  0.7 |
+| en  | it  |  0.0 | 37.7 | 37.7 | 37.7 | 37.7 |
+| en  | sv  |  0.0 | 41.4 | 41.4 | 41.4 | 41.4 |
+| fi  | el  |  0.0 |  0.0 |  8.2 |  0.1 |  0.0 |
+| fi  | en  | 26.1 |  0.0 | 15.9 |  0.1 |  0.0 |
+| fi  | it  |  0.0 |  0.0 |  7.3 |  0.1 |  0.0 |
+| fi  | sv  |  0.0 |  0.0 |  8.3 |  0.1 |  0.0 |
+| it  | el  |  0.0 | 15.6 | 15.6 | 15.6 | 15.6 |
+| it  | en  |  0.0 | 34.8 | 34.8 | 34.8 | 34.8 |
+| it  | fi  |  0.0 |  0.0 | 11.3 |  0.1 |  0.1 |
+| it  | sv  |  0.0 | 14.5 | 14.5 | 14.5 | 14.5 |
+| sv  | el  |  0.0 | 16.5 | 16.5 | 16.5 | 16.5 |
+| sv  | en  |  0.0 | 36.8 | 36.8 | 36.8 | 36.8 |
+| sv  | fi  |  0.0 |  0.0 | 13.0 |  0.2 |  0.2 |
+| sv  | it  |  0.0 | 14.4 | 14.4 | 14.4 | 14.4 |
+
+| tgt | src |   t4 |
+|-----+-----+------|
+| da  | nl  | 25.2 |
+| nl  | da  | 21.8 |
