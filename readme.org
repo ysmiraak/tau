@@ -1,0 +1,52 @@
+* documentations
+
+- [[docs/paper/paper.pdf][paper]]
+
+* quick start
+
+** dependencies
+
+- [[https://www.python.org/][python3]]
+- [[https://www.tensorflow.org/][tensorflow 1]]
+- [[https://github.com/google/sentencepiece][sentencepiece]]
+- [[https://tqdm.github.io/][tqdm]]
+- [[https://github.com/mjpost/sacreBLEU][sacrebleu]]
+
+** to reproduce our results
+
+#+BEGIN_SRC bash :eval no
+mkdir data data/raw data/master pred ckpt log
+#+END_SRC
+
+*** download datasets
+
+download the following parallel corpora from [[http://www.statmt.org/europarl/][europarl]]
+and untar to the =data/raw= directory
+- [[http://www.statmt.org/europarl/v7/nl-en.tgz][dutch-english]]
+- [[http://www.statmt.org/europarl/v7/de-en.tgz][german-english]]
+- [[http://www.statmt.org/europarl/v7/da-en.tgz][danish-english]]
+- [[http://www.statmt.org/europarl/v7/sv-en.tgz][swedish-english]]
+
+*** prepare the data
+
+#+BEGIN_SRC bash :eval no
+cd src
+./data.py
+#+END_SRC
+
+*** train a new model
+
+- run scripts =train[0-5].py= in succession, where =[0-5]= is the trial number
+- the checkpoints will be saved in =ckpt=
+- the tensorboard summaries will be saved in =log=
+- by the naming pattern =m[0-5]_=
+- a checkpoint number also is appended for the checkpoints
+
+*** evaluate translation
+
+- run =eval_all.py= for translating between all language pairs
+- run =eval_nl_da.py= for translating only between dutch and danish
+- the trial number (=C.trial=) and the checkpoint number (=C.ckpt= or =ckpt=) needs to be set first
+- the translations for the evaluation set will be saved in =pred=
+- run =sacrebleu --force -tok intl -b -i= with the path to the predicted translation
+- and the path to the reference translation (saved as =data/master/eval_*.txt= by =data.py=)
