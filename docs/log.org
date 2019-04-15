@@ -1,0 +1,74 @@
+* idea
+
+- 5 germanic languages : en nl de da sv
+- parallel corpora between en and the other 4
+
+training
+
+- model 0: between nl da
+- model 1: between en de sv
+- model 2: between nl da, from model 1
+- model 3: between nl da, from model 1, train embedding only
+- model 4: like model 3, but with only 2^17 instances
+- model 5: like model 0, but with only 2^17 instances
+
+evaluation
+
+- bleu scores between nl da          ; for model 0
+- bleu scores between en de sv       ; for model 1
+- bleu scores between en nl de da sv ; for model 2 3
+
+* data
+
+number of non-empty instances in each corpus
+
+| nl | 1978745 |
+| de | 1908920 |
+| da | 1949685 |
+| sv | 1848423 |
+
+- partition all sentences in 5 corpora into equivalence classes
+- take the classes which cover all languages (1390396) uniquely (1381977)
+
+- sentencepiece unigram vocabulary model, one for each language
+- take instances with all sentences within 64 pieces (1259953)
+- randomly split 4096 instances for evaluation and 1024 for validation
+- 1254833 training instances
+
+* bleu
+
+evaluated with =sacrebleu -tok intl=
+
+after training each model for ~36 epochs, with batch size 300
+  - 300k steps for m0 m2 m3
+  - 900k steps for m1
+
+| tgt | src |   m0 |   m1 |   m2 |   m3 |
+|-----+-----+------+------+------+------|
+| nl  | en  |  0.0 |  0.0 |  0.2 | 23.3 |
+| en  | nl  |  0.0 |  0.0 |  0.0 | 30.7 |
+| de  | en  |  0.0 | 29.0 |  0.0 | 29.0 |
+| en  | de  |  0.0 | 35.9 |  0.0 | 35.9 |
+| da  | en  |  0.1 |  0.0 |  0.0 | 31.5 |
+| en  | da  |  0.0 |  0.0 |  0.0 | 35.4 |
+| sv  | en  |  0.0 | 36.3 |  0.0 | 36.3 |
+| en  | sv  |  0.0 | 40.1 |  0.0 | 40.1 |
+| de  | nl  |  0.0 |  0.0 |  0.0 | 22.0 |
+| nl  | de  |  0.0 |  0.0 |  0.0 | 22.1 |
+| da  | nl  | 29.8 |  0.0 | 29.4 | 26.3 |
+| nl  | da  | 28.1 |  0.0 | 27.7 | 23.5 |
+| sv  | nl  |  0.0 |  0.0 |  0.0 | 23.7 |
+| nl  | sv  |  0.0 |  0.0 |  0.0 | 21.5 |
+| da  | de  |  0.0 |  0.0 |  0.2 | 26.9 |
+| de  | da  |  0.0 |  0.0 |  0.0 | 23.6 |
+| sv  | de  |  0.0 | 27.9 |  0.0 | 27.9 |
+| de  | sv  |  0.0 | 25.9 |  0.0 | 25.9 |
+| sv  | da  |  0.0 |  0.0 |  0.0 | 29.0 |
+| da  | sv  |  0.1 |  0.0 |  0.1 | 29.8 |
+
+with 2^17 instances
+
+|    | da <- nl | nl <- da | k-steps | epochs |
+|----+----------+----------+---------+--------|
+| m4 |     26.1 |     23.5 |     360 | 205.99 |
+| m5 |     24.7 |     23.2 |      40 | 22.888 |
