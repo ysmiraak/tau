@@ -23,7 +23,7 @@ config = Record(
 
 paths = Record(
       raw  = "../data/raw"
-    , data = "../data/master"
+    , data = "../data/unknown"
     , pred = "../pred"
     , ckpt = "../ckpt"
     , log  = "../log"

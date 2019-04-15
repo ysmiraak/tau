@@ -12,14 +12,40 @@ def profile(sess, wtr, run, feed_dict= None, prerun= 3, tag= 'flow'):
     wtr.add_run_metadata(meta, tag)
 
 
-def pipe(*args, prefetch= 1, repeat= -1, name= 'pipe', **kwargs):
-    """see `tf.data.Dataset.from_generator`"""
+def init_or_restore(sess, ckpt, verbose= True):
+    """restores saved variables from `ckpt` and initializes the rest."""
+    names = {name for name, _ in tf.train.list_variables(ckpt)}
+    saved, extra = [], []
+    for var in tf.global_variables():
+        if var.name[:-2] in names:
+            saved.append(var)
+        else:
+            extra.append(var)
+    tf.train.Saver(saved).restore(sess, ckpt)
+    if verbose: print("restored {} variables from {}".format(len(saved), ckpt))
+    sess.run(tf.variables_initializer(extra))
+    if verbose: print("initialized {} variables".format(len(extra)))
+
+
+def pipe(gen_func, gen_types, map_func= None, map_types= None, para_map= 4, prefetch= 4, name= 'pipe'):
+    """returns iterator tensors of `gen_types` from generator `gen_func`.
+    see `tf.data.Dataset.from_generator`.
+
+    when specified, `map_func` is called on the generator outputs (as
+    numpy arrays) and tensors of `map_types` are returned instead.
+    `para_map` number of calls are processed in parallel.  `map_func`
+    must be stateless.  otherwise simply transform the data in
+    `gen_func`.  it should be used only for parallelizing heavy
+    transformations.  see `tf.data.Dataset.map` and `tf.py_func`.
+
+    """
     with scope(name):
-        return tf.data.Dataset.from_generator(*args, **kwargs) \
-                              .repeat(repeat) \
-                              .prefetch(prefetch) \
-                              .make_one_shot_iterator() \
-                              .get_next()
+        ds = tf.data.Dataset.from_generator(gen_func, gen_types)
+        if map_func is not None:
+            ds = ds.map(
+                lambda *args: tf.py_func(map_func, args, map_types, stateful= False)
+                , num_parallel_calls= para_map)
+        return ds.prefetch(prefetch).make_one_shot_iterator().get_next()
 
 
 def placeholder(dtype, shape, x= None, name= None):

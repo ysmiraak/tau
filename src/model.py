@@ -201,7 +201,7 @@ class Model(Record):
     _new = 'dim_emb', 'dim_mid', 'dim_voc', 'cap', 'eos', 'bos'
 
     @staticmethod
-    def new(dim_emb, dim_mid, dim_voc, cap, eos, bos):
+    def new(langs, dim_emb, dim_mid, dim_voc, cap, eos, bos):
         """-> Model with fields
 
           decode : Decode
@@ -212,7 +212,7 @@ class Model(Record):
         """
         assert not dim_emb % 2
         return Model(
-              embeds = tuple(Embed(dim_emb, dim_voc, name= "embed{}".format(i)) for i in range(5))
+              embeds = {lid: Embed(dim_emb, dim_voc, name= "embed_{}".format(lid)) for lid in langs}
             , decode= Decode(dim_emb, name= 'decode')
             , encode= Encode(dim_emb, name= 'encode')
             , dim_emb= dim_emb

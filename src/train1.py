@@ -1,49 +1,57 @@
 #!/usr/bin/env python3
 
-from itertools import permutations, chain
+from itertools import permutations, chain, islice
 from model import Model, batch_run
 from tqdm import tqdm
 from trial import config as C, paths as P, train as T
-from util import partial, comp, select
+from util import partial, comp, select, Record
 from util_io import pform, load_txt, save_txt
-from util_np import np, partition, batch_sample
+from util_np import np, partition, sample, batch_sample
 from util_sp import load_spm, encode, decode
 from util_tf import tf, pipe
 tf.set_random_seed(C.seed)
+np.random.seed(C.seed)
 
-C.trial = 'm1_'
+C.trial = 't1_'
 
 #############
 # load data #
 #############
 
-valid_en, train_en = np.load(pform(P.data, "valid_en.npy")), np.load(pform(P.data, "train_en.npy"))
-# valid_nl, train_nl = np.load(pform(P.data, "valid_nl.npy")), np.load(pform(P.data, "train_nl.npy"))
-valid_de, train_de = np.load(pform(P.data, "valid_de.npy")), np.load(pform(P.data, "train_de.npy"))
-# valid_da, train_da = np.load(pform(P.data, "valid_da.npy")), np.load(pform(P.data, "train_da.npy"))
-valid_sv, train_sv = np.load(pform(P.data, "valid_sv.npy")), np.load(pform(P.data, "train_sv.npy"))
+langs = 'en', 'el', 'it', 'sv'
 
-data_index =        0,        2,        4
-data_valid = valid_en, valid_de, valid_sv
-data_train = train_en, train_de, train_sv
+data_train = Record(np.load(pform(P.data, "train.npz")))
+data_valid = Record(np.load(pform(P.data, "valid.npz")))
 
-def batch(arrs, size= C.batch_train, seed= C.seed):
-    size //= len(arrs) * (len(arrs) - 1)
-    for i in batch_sample(len(arrs[0]), size, seed):
-        yield tuple(arr[i] for arr in arrs)
+def batch(size= C.batch_train // 2
+        , srcs= tuple(data_train["{}_{}".format(lang, lang)] for lang in langs[1:])
+        , tgts= tuple(data_train["{}_{}".format(lang, 'en')] for lang in langs[1:])
+        , seed= C.seed):
+    corps = np.arange(len(tgts))
+    sizes = np.array(list(map(len, tgts)))
+    props = sizes / sizes.sum()
+    samps = tuple(sample(size, seed) for size in sizes)
+    while True:
+        c, freqs = np.unique(np.random.choice(corps, size, p= props), return_counts= True)
+        if np.array_equal(corps, c):
+            yield tuple(
+                (src[bat], tgt[bat])
+                for src, tgt, bat in zip(srcs, tgts, (
+                        np.fromiter(islice(samp, freq), np.int, freq)
+                        for samp, freq in zip(samps, map(int, freqs)))))
 
-perm = comp(tuple, partial(permutations, r= 2))
-data_index = perm(data_index)
-data_valid = perm(data_valid)
-data_train = perm(pipe(partial(batch, data_train), (tf.int32,)*len(data_train), prefetch= 16))
+double = lambda pairs: tuple(chain(*(((x, y), (y, x)) for x, y in pairs)))
+data_index = double((lang, 'en') for lang in langs[1:])
+data_train = double(pipe(batch, ((tf.int32,tf.int32),)*len(langs[1:])))
+data_valid = tuple((data_valid[sid], data_valid[tid]) for sid, tid in data_index)
 
 ###############
 # build model #
 ###############
 
-model = Model.new(**select(C, *Model._new))
-valid = tuple(model.data(i, j).valid() for i, j in data_index)
-train = tuple(model.data(i, j, s, t).train(**T) for (i, j), (s, t) in zip(data_index, data_train))
+model = Model.new(langs, **select(C, *Model._new))
+valid = tuple(model.data(sid, tid).valid() for sid, tid in data_index)
+train = tuple(model.data(sid, tid, src, tgt).train(**T) for (sid, tid), (src, tgt) in zip(data_index, data_train))
 
 model.lr   = train[0].lr
 model.step = train[0].step
@@ -72,7 +80,7 @@ def summ(step, wtr = tf.summary.FileWriter(pform(P.log, C.trial))
     wtr.add_summary(sess.run(summary, {model.errt: errt, model.loss: loss}), step)
     wtr.flush()
 
-for _ in range(9): # ~4 epoch per round
+for _ in range(16): # 3.29 epochs per round
     for _ in range(250):
         for _ in tqdm(range(400), ncols= 70):
             sess.run(model.down)
